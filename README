@@ -1,0 +1,108 @@
+
+the ARFANT project
+==================
+
+Arfant stands for Astrology Research Framework. It is to offer an
+environment where general ideas about astrology can be easily
+tested and explored.
+
+
+Roadmap
+-------
+
+Version numbers starting with 0 are development versions.
+A version number starting witn 0.0 refers only to the build number,
+that is how many times we run make. A non-zero second number refers
+to a release candidate. So 0.1.x is a release candidate for v1.0.
+
+v1.0 will contain ar & arfant. AR is the "astro reporter", which just
+prints astrological data for given events. ARFANT is a basic gui for
+entering data and displayig gorgeous cairo-powered charts.
+
+The steps to get to ONE dot OH are:
+
+v0.1.1 get all drawing code working well enough
+
+v0.1.2 settle aspect and house format
+
+v0.1.3 make minimal viable GUI
+
+v0.1.4 add sqlite support for keeping record of charts and so on.
+
+v0.1.5 add support for lua scripts.
+
+v0.1.6 add support for transits and further free-form calculation.
+
+v2.0 will transition to being more of a "framework", focusing on the
+scripting and flexibility.
+
+
+
+Interface in C(99)
+------------------
+
+The datatypes
+-------------
+
+Datum is {lon,lat}, it represents a point in spherical coords.
+
+Event is a named moment in time at a location. It begins with a Datum
+(to allow casting), then there is a time in JDN, and then there is a
+pointer to a C string.
+
+Event = {lon, lat, jdn, name}.
+
+Point is anything that can be present in an astrological chart, mostly
+astronomical bodies, but also fictive bodies, and so on. It begins with
+a Datum (again, for casting) then it has the distance from Earth, then
+the longitudinal speed. Then there is the swiss ephemeris code number
+for this point. Finally a 4-byte UTF8 sequence for the symbol of the
+point and a 24-byte string for the name of the point.
+
+Point = {lon, lat, dist, speed, code, symbol, name}.
+
+Cusp represents the house cusps, but using the same bit-format as Point.
+In basic usage longitude contains the cusp position, and name contains
+the house number in roman numerals (which is admitedly silly). The code
+is the negative of the house number, to avoid collision with the swiss
+ephemeris codes for points.
+
+The positions that correspond to lat, dist and speed can contain
+alternative house system calculations. Most importantly, the equivalent
+of speed always contains true Ascendant and Midheaven if the house
+system used considers house 1 and 10 to begin somewhere else. These
+values can also be accessed through the array .alt[0-3], where [0] is
+the main house system position, and [3] contains special data.
+
+Cusp = {lon, alt1, alt2, def, code, symbol, name}.
+
+Chart represents both the event and all the calculated data for it. The
+structure contains pointers to an Event, to an array of Cusps, to an
+array of Points, and to an Array of aspects. The array of cusps comes
+before the points in memory, so that cusps[-1] is valid, and refers to
+the first house. There is also an pt_count that contains the size of
+the points array.
+
+Internally all times are used as floating-point Julian Day Numbers (jdn)
+and suitable functions are provided to convert from calendar dates, but
+one function per calendar --- so for example proleptic2jdn() knows
+absolutely nothing about the julian calendar or the inexistence of the
+0th year.
+
+The functions
+-------------
+
+
+Interface in script
+-------------------
+
+ARF is supposed to be scripted for most of it's funcionality. There's
+just no way an astrology program should be scripted with anything other
+than LUA. Just come one.
+
+
+
+Boring stuff
+------------
+
+For rights, see COPYING.
