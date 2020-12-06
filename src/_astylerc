@@ -1,0 +1,20 @@
+--style=whitesmith
+-s3
+# i know i should rather -s4 or even -s2...
+--indent-preproc-define
+--convert-tabs #indent-preproc-define recomends this
+--indent-col1-comments
+--max-continuation-indent=50 #from 40 to 120 ?not sure about?
+# a part of me thinks --pad-oper is important...
+# paren padding!!!
+--unpad-paren
+--pad-header
+--pad-paren-in
+--align-pointer=type
+--add-braces
+--add-one-line-braces
+--break-return-type
+--attach-return-type-decl
+--keep-one-line-blocks # also implied by --add-one-line-braces, i guess
+--max-code-length=90
+
