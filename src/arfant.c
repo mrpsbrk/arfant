@@ -44,47 +44,39 @@ spit( char* s )
 
 intern
 void
-paint_chart()
+paint_chart( Figure* ff )
    {
    // clear
-   prep_gray( F, 1 );
-   cairo_paint( F->t );
-   prep_gray( F, 0.5 );
-   draw_text( F, -3.0, -3.0, 0.5, buildtag );
+   prep_gray( ff, 1 );
+   cairo_paint( ff->t );
+   prep_gray( ff, 0.5 );
+   draw_text( ff, -3.0, -3.0, 0.75, buildtag );
    //
-   if ( F->c == NULL)
+   if ( ff->c == NULL)
       {
-      prep_gray( F, 0.25 );
-      draw_placeholder( F );
-      draw_text( F, 20.0,  30.0, 4.0, "Astrology" );
-      draw_text( F, 20.0, 130.0, 4.0, "Research" );
-      draw_text( F, 20.0, 230.0, 4.0, "Framework" );
+      prep_gray( ff, 0.25 );
+      draw_placeholder( ff );
+      draw_text( ff, 20.0,  30.0, 4.0, "Astrology" );
+      draw_text( ff, 20.0, 130.0, 4.0, "Research" );
+      draw_text( ff, 20.0, 230.0, 4.0, "Framework" );
       }
    else
       {
-      draw_chart_details( F, 20.0, 20.0 );
+      draw_chart_details( ff, 20.0, 20.0 );
       Stripe mys[] =
          {
-            { fleurons,  .width=0.05 },
-            { axis,  .width=0.05 },
-            { multi_tics, .width=0.065 },
-            { extra_house_sys, .width=0.04 },
-            { noop, .width=0.02 },
+            { axis_decor,  .width=0.1 },
+            { axis,  .over=1 },
+            { zodiac_open, .begin=0.96, .end=0.88 },
+            { extra_house_sys, .width=0.05 },
+            { spacer, .width=0.025 },
             { house_slabs, .width=0.3 },
-            { basic_aspects, .width=0.3 },
-            { dot_dot_points, .as=-2 },
-            { point_image, .begin=0.81, .end=0.94 },
+            { fancy_aspects, .width=0.3 },
+            { dot_dot_points, .over=-2 },
+            { point_image, .begin=1.0, .end=0.84 },
             {}
          };
-      paint_stripes( F, mys );
-      //---------- tables
-      //prep_gray( F, 0.1 );
-      //char* txt1 = make_point_table(F->c, "|$Y| $N | $z |$s|");
-      //draw_paragraph( F, 8, -8, 0.35, txt1 );
-      //free( txt1 );
-      //char* txt2 = make_house_table(F->c);
-      //draw_paragraph( F, F->w - (F->sz * 9) , -8, 0.27, txt2 );
-      //free( txt2 );
+      paint_stripes( ff, mys );
       }
    }
 
@@ -94,18 +86,18 @@ paint_chart()
 void
 callback( GtkWidget* w, gpointer data )
    {
-   #define strcase(C) if( 0 == strcmp( data, C ) )
-      strcase( "Now" )
+   #define ifcommand(C) if( 0 == strcmp( data, C ) )
+      ifcommand( "Now" )
          {
          if( F->c ) { dump_chart( F->c ); }
          double jdnnow = jdn_of_now();
          F->c = make_chart( "Now", jdnnow, -23.0, -43.0 );
          F->asc = F->c->ascendant;
-         paint_chart();
+         paint_chart( F );
          refresh();
          }
       else
-      strcase( "Calculate" )
+      ifcommand( "Calculate" )
          {
          char* nam = strdup( gtk_entry_get_text( GTK_ENTRY(ui_Name) ));
          char* dat = strdup( gtk_entry_get_text( GTK_ENTRY(ui_Date) ));
@@ -119,7 +111,7 @@ callback( GtkWidget* w, gpointer data )
             if( F->c ) { dump_chart( F->c ); }
             F->c = make_chart( nam, jdn+tmd, geo.lat, geo.lon );
             F->asc = F->c->ascendant;
-            paint_chart();
+            paint_chart( F );
             refresh();
             }
          free(nam);
@@ -128,7 +120,7 @@ callback( GtkWidget* w, gpointer data )
          free(plc);
          }
       else
-      strcase( "Export PNG" )
+      ifcommand( "Export PNG" )
          {
          cairo_status_t ret;
          cairo_surface_t* out =
@@ -143,7 +135,7 @@ callback( GtkWidget* w, gpointer data )
          cairo_surface_destroy( out );
          }
       else
-      strcase( "Report" )
+      ifcommand( "Report" )
          {
          if( F->c )
             {
@@ -154,11 +146,11 @@ callback( GtkWidget* w, gpointer data )
             }
          }
       else
-      strcase( "Quit" )
+      ifcommand( "Quit" )
          { g_application_quit( G_APPLICATION(app) ); }
       else
          { printf( "Unprocessed command: %s\n", (char*) data ); }
-   #undef strcase
+   #undef ifcommand
    }
 
 
@@ -183,9 +175,9 @@ config_display( GtkWidget* wid, GdkEventConfigure* ev, gpointer data )
    F->r = MIN( F->w, F->h )/2.0;
    F->x = F->w/2.0;
    F->y = F->h/2.0;
-   F->sz = F->r*0.075;
+   F->sz = F->r*0.04;
    //
-   paint_chart();
+   paint_chart( F );
    return FALSE;
    }
 

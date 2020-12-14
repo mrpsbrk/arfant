@@ -199,6 +199,8 @@ fill_points( Chart* c )
          to_symbol_utf( (*c).points[i].symbol,the_pts[i] );
          }
       }
+   stat = swe_calc_ut( c->ev->jdn,SE_TRUE_NODE,opts,ret,err );
+   (*c).points[-12].def = ret[0];
    }
 
 /** fill_cusps() calculates house cusps in a Chart.
@@ -211,14 +213,15 @@ fill_cusps( Chart* c )
    // swiss ephemeris stuff
    double ret[13] = {};
    double extra[10] = {};
+   long stat;
    //char err[AS_MAXCH];
+   //long opts= SEFLG_SPEED;
    //
    if ( 'G' == the_systems[0] ) { puts( "Gauquelin not implemented" ); exit( 'g' ); }
    int len = strlen( the_systems );
    //
    for( int s=0; s<len; s++ ) // s indexing the _S_ystems
       {
-      long stat;
       int base = -12 * ((s+1)/4); // for .points[base-x]
       char tag = the_systems[s];
       stat = swe_houses(c->ev->jdn,c->ev->lat,c->ev->lon,tag,ret,extra );
@@ -246,9 +249,8 @@ fill_cusps( Chart* c )
    //(*c).points[-9].def = extra[?];
    (*c).points[-10].def = extra[1];// Midheaven MC
    //(*c).points[-11].def = extra[?];
-   //(*c).points[-12].def = extra[?];
    /// @todo add missing (*c).points[-8,-9,-11,-12].def
-   //stat = swe_calc_ut( c->ev->jdn,the_pts[i],opts,ret,err );
+   //(*c).points[-12].def = ret[0];
    }
 
 /** to_aspect() determines whether there is an aspect between to angles.

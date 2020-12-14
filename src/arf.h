@@ -164,7 +164,7 @@ extern void init_swiss_ephemeris(char* systems, int* points);
 extern void set_housesystem( int );
 extern void end_swiss_ephemeris();
 extern Chart* make_chart( char* name, double jdn, double lat, double lon );
-extern Chart* make_chart_of_event( Event* ev ); ///@todo
+extern Chart* make_chart_of_event( Event* ev );
 extern void dump_chart( Chart* );
 extern Aspect to_aspect( double, double );
 extern Aspect* make_aspects( Chart* );
@@ -200,6 +200,7 @@ Figure;
 extern void prep_code( Figure*, int );
 extern void prep_gray( Figure*, double );
 extern void prep_rgb ( Figure*, double, double, double );
+extern void prep_transp ( Figure*, double, double, double,double );
 extern void prep_font( Figure*, double );
 extern void prep_line( Figure*, int type, double w );
 // Drawing functions
@@ -216,7 +217,8 @@ extern void draw_text( Figure* F, double x, double y, double sz, char* txt );
 extern void draw_paragraph(Figure* F, double x, double y, double sz, char* txt );
 extern void draw_chart_details( Figure* F, double x, double y );
 //
-extern void draw_fleur( Figure*, double, double );
+extern void draw_fleuron( Figure*, double, double, double sz );
+extern void draw_node_head( Figure*, double, double, double sz );
 ///@todo draw_map() using **Natural Earth Projection**
 
 //---- STRIPES (in draw.c) -------------------------------------------//
@@ -228,10 +230,12 @@ typedef struct Stripe
    {
    Painter* func;
    double begin, end, width;
-   int    from,  to,  as;
+   int    over;
    } Stripe;
+extern Painter spacer;
 extern Painter border;
 extern Painter axis;
+extern Painter axis_decor;
 extern Painter tics2;
 extern Painter tics10;
 extern Painter multi_tics;
@@ -246,12 +250,15 @@ extern Painter point_glyphs_distrib;
 extern Painter point_pos_distrib;
 extern Painter point_balls_distrib;
 extern Painter point_image;
+//
 extern Painter noop;
+extern Painter demarcador;
 // new ones
-extern Painter fleurons;
 extern Painter dot_dot_points;
 extern Painter extra_house_sys;
 extern Painter basic_aspects;
+extern Painter fancy_aspects;
+extern Painter zodiac_open;
 //main stripe painter
 extern void paint_stripes( Figure*, Stripe* bs );
 

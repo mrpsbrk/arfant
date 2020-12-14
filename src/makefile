@@ -40,7 +40,12 @@ ar: ar.o $(SE) $(OBJs)
 	@ $C -o $@ ar.o $(OBJs) $(SE) $I
 
 ## OBJECTS
-$(OBJs) ar.o arfant.o: %.o: %.c $(Hs)
+ar.o arfant.o: %.o: %.c $(Hs)
+	@echo cc $<
+	@ $C $F -c $<
+
+$(OBJs): %.o: %.c %.test $(Hs)
+	@./$(basename $< ).test
 	@echo cc $<
 	@ $C $F -c $<
 

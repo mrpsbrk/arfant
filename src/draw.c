@@ -16,10 +16,14 @@
 
 //-- COORDINATES TRANSFORMATION -- try to enforce use of those -------//
 #define ANG( x ) M_PI+((x) - F->asc) * (-M_PI/180)
-#define RECT(r,a) r *cos( ANG(a) )+F->x, r *sin( ANG(a) )+F->y
+#define COORDX(r,a) (r) * cos( ANG( (a) )) + F->x
+#define COORDY(r,a) (r) * sin( ANG( (a) )) + F->y
+#define RECT(r,a) COORDX(r,a), COORDY(r,a)
 //-- Radians and Degrees ---------------------------------------------//
 #define R2D( a ) ( (a)*(180.0/M_PI) )
 #define D2R( a ) ( (a)*(M_PI/180.0) )
+//-- Distance between two angles -------------------------------------//
+#define ADIST(M,N) 180.0-fabs( fabs( (M)-(N) ) - 180.0 )
 
 //-- law of COSINES!!!!! ---------------------------------------------//
 #define deg_of_l_at_r(L,R) R2D( acos( 1-(L)*(L)/(2*(R)*(R)) ) )
@@ -51,8 +55,7 @@ make_distrib( Figure* F, double dist )
       for ( int k=0; F->c->pt_count>k; k++ )
          {
          if ( k==i ) { continue; }
-         d = fabs( F->c->points[i].lon-F->c->points[k].lon );
-         ///@todo CHECK CROSS 360!!!!
+         d = ADIST( F->c->points[i].lon , F->c->points[k].lon );
          if ( d<dist )
             {
             delta = ( dist-d )/2;
@@ -61,7 +64,6 @@ make_distrib( Figure* F, double dist )
             }
          }
       }
-   //puts("exit func make_distrib()");
    return ret;
    }
 
@@ -145,6 +147,12 @@ void
 prep_rgb( Figure* F, double r, double g, double b )
    {
    cairo( set_source_rgb, r, g, b );
+   }
+
+void
+prep_transp( Figure* F, double r, double g, double b, double a )
+   {
+   cairo( set_source_rgba, r, g, b, a );
    }
 
 void
@@ -354,14 +362,13 @@ draw_spoke(Figure* F, double r1, double r2, double a )
 void
 draw_slab(Figure* F, double r1, double z1, double r2, double z2 )
    {
-   //double a1 = ANG( z1 );
-   //double a2 = ANG( z2 );
-   double rx = r2 * 0.9651; // sin( 2 degree )
+   //double rx = r1 * 0.9651; // sin( 2 degree )
+   double rx = r1 - l_of_deg_at_r( 2.0 , r1 );
    cairo( move_to, RECT(rx,z1) );
-   cairo( line_to, RECT(r1,z1) );
-   cairo( arc_negative, F->x, F->y, r1, ANG(z1), ANG(z2) );
+   cairo( line_to, RECT(r2,z1) );
+   cairo( arc, F->x, F->y, r2, ANG(z1), ANG(z2) );
    cairo( line_to, RECT(rx,z2) );
-   cairo( arc, F->x, F->y, r2, ANG(z2-2), ANG(z1+2) );
+   cairo( arc, F->x, F->y, r1, ANG(z2-2), ANG(z1+2) );
    cairo( close_path );
    cairo( stroke );
    }
@@ -438,8 +445,100 @@ draw_image( Figure* F, double r, double z, double l, char* src )
       }
    }
 
-//---- DRAW funcs NOT ON POLAR COORDS!!!!!!
-//-- ??? maybe those should get a different name?
+intern void
+draw_arc_2pt_r( Figure* F, double r1, double a1, double r2, double a2, double r )
+   {
+   double x1 = COORDX(r1,a1);
+   double y1 = COORDY(r1,a1);
+   double x2 = COORDX(r2,a2);
+   double y2 = COORDY(r2,a2);
+   // if r too small, make r = dist
+   double dist = sqrt( (x1-x2)*(x1-x2) + (y1-y2)*(y1-y2) );
+   if ( r < (dist/2.0) ) { r = dist/1.9; }
+   //
+   double xM = ( x1 + x2 ) / 2.0;
+   double yM = ( y1 + y2 ) / 2.0;
+   double q = sqrt( (x1-x2)*(x1-x2) + (y1-y2)*(y1-y2) );
+   double xC = xM + sqrt(r*r-(q/2.0)*(q/2.0))*(y1-y2)/q;
+   double yC = yM + sqrt(r*r-(q/2.0)*(q/2.0))*(x2-x1)/q;
+   cairo( arc, xC, yC, r, 0, 2*M_PI );
+   //cairo( arc, xC, yC, r, asin( (x2-xC)/r ), asin( (x1-xC)/r ) );
+   cairo( stroke );
+   }
+
+void draw_fleuron( Figure* F, double r, double z, double sz )
+   {
+   const double ds[][6] =
+      {
+         {   0,   0,   0,   0,  80,   0 },
+         { 110,   0, 110,  20, 110,  30 },
+         { 110,  40, 110,  50, 100,  50 },
+         {  90,  50,  80,  40,  90,  30 },
+         {   0,   0,   0,   0,  90,  30 }, //0
+         {  80,  40,  90,  50, 100,  50 }, //1
+         { 110,  50, 120,  40, 120,  30 }, //2
+         { 120,  10, 110,   0,  80,   0 }, //3
+         {  20,   0,  30,  60,   0,  60 }, //4
+         {  30,  60,  20, 120,  80, 120 }, //5
+         { 110, 120, 120, 110, 120,  90 }, //6
+         { 120,  80, 110,  70, 100,  70 }, //7
+         {  90,  70,  80,  80,  90,  90 }, //8
+         {  80,  80,  90,  70, 100,  70 }, //7'
+         { 110,  70, 110,  80, 110,  90 }, //9
+         { 110, 100, 110, 120,  80, 120 }, //5'
+         {  60, 120,  50, 110,  50,  90 }, //10
+         {  50,  70,  60,  60,  80,  60 }, //11
+         {  60,  60,  50,  50,  50,  30 }, //12
+         {  50,  10,  60,   0,  80,   0 }, //3'
+         {  40,   0,  30,  40,  50,  60 }, //13
+         {  30,  80,  40, 120,  80, 120 }
+      };
+   // housekeeping
+   cairo_matrix_t save;
+   cairo( get_matrix, &save );
+   cairo( translate, F->x, F->y );
+   cairo( rotate, ANG((z+180)) );
+   cairo( translate, r * -1, 0 );
+   cairo( scale, sz/100.0, sz/100.0 );
+   //
+   cairo( move_to, ds[0][4], ds[0][5]-60 );
+   for( int i = 1; i<22; i++ )
+      {
+      cairo( curve_to,
+         ds[i][0], ds[i][1]-60,
+         ds[i][2], ds[i][3]-60,
+         ds[i][4], ds[i][5]-60 );
+      }
+   //
+   // housekeeping
+   cairo( set_matrix, &save );
+   cairo( stroke );
+   };
+
+
+void draw_node_head( Figure* F, double r, double tn, double sz )
+   {
+   double rP = sz / 2.0;
+   double rF = rP * 0.2;
+   
+   double xP = COORDX( r-rP, tn );
+   double yP = COORDY( r-rP, tn );
+   double xF1 = cos( ANG( tn+135 ) ) * (rP+rF) + xP;
+   double yF1 = sin( ANG( tn+135 ) ) * (rP+rF) + yP;
+   double xF2 = cos( ANG( tn-135 ) ) * (rP+rF) + xP;
+   double yF2 = sin( ANG( tn-135 ) ) * (rP+rF) + yP;
+   
+   prep( line, 0, 2 );
+   cairo( arc_negative, xF1, yF1, rF, ANG(tn), ANG( tn+315 ) );
+   cairo( arc, xP, yP, rP, ANG(tn+135), ANG(tn-135) );
+   cairo( arc_negative, xF2, yF2, rF, ANG(tn-315), ANG( tn ) );
+   cairo( stroke );
+   }
+
+
+
+//---- DRAW funcs NOT ON POLAR COORDS!!!!!! --------------------------//
+///@todo change name --- maybe place_text place_parag etc?
 void
 draw_text(Figure* F, double x, double y, double siz, char* txt )
    {
@@ -484,13 +583,32 @@ draw_chart_details( Figure* F, double x, double y )
    char txt[32];
    draw_text( F, x, y, 1.5, F->c->ev->name );
    to_datetag( txt, F->c->ev->jdn );
-   draw_text( F, x, y+(2*F->sz), 0.75, txt );
+   draw_text( F, x, y+(1.85*F->sz), 0.75, txt );
+   to_coords( txt, F->c->ev );
+   draw_text( F, x, y+(2.75*F->sz), 0.75, txt );
    }
 
 //-- STRIPES ---------------------------------------------------------//
 //---- are bands that run around the chart
 //---- should have format:
 //----                    void function(Figure*, radius1, radius2)
+
+//---- BASIC STRIPES -------------------------------------------------//
+void spacer( Figure* F, double r1, double r2 )
+   {
+   static int useless = 0;
+   useless++;
+   //puts("dis func does nada");
+   }
+
+void demarcador( Figure* F, double r1, double r2 )
+   {
+   prep( code, -1 );
+   prep( transp, 1.0, 0.0, 0.0, 0.5 );
+   draw( circle, r1 );
+   prep( transp, 0.0, 1.0, 0.0, 0.5 );
+   draw( circle, r2 );
+   }
 
 void border( Figure* F, double r1, double r2 )
    {
@@ -500,13 +618,34 @@ void border( Figure* F, double r1, double r2 )
 
 void axis( Figure* F, double r1, double r2 )
    {
+   double r = ( r1 + r2 ) / 2.0;
+   double as = F->c->house(1).def;
+   double mc = F->c->house(10).def;
+   double tn = F->c->house(12).def;
    prep( code, -1 );
-   draw( line, r2, F->c->house(1).def, r2, F->c->house(1).def+180 );
-   draw( line, r2, F->c->house(10).def,r2, F->c->house(10).def+180 );
-   //draw( line, r1, F->c->house(1).def+2.0, r2, F->c->house(1).def );
-   //draw( line, r1, F->c->house(1).def-2.0, r2, F->c->house(1).def );
-   //draw( line, r1, F->c->house(10).def +2.0, r2, F->c->house(10).def );
-   //draw( line, r1, F->c->house(10).def -2.0, r2, F->c->house(10).def );
+   prep( line, 36, 1.5 );
+   draw( line, r, as, r, as+180 );
+   draw( line, r, mc, r, mc+180 );
+   draw( line, r, tn, r, tn+180 );
+   }
+
+void axis_decor( Figure* F, double r1, double r2 )
+   {
+   //demarcador( F, r1, r2 );
+   double sz = fabs( r1-r2 );
+   prep( code, -1 );
+   draw( fleuron, r1, F->c->ascendant, sz );
+   draw( fleuron, r1, F->c->midheaven, sz );
+   draw( node_head, r1, F->c->house(12).def, sz );
+   }
+
+void arrows( Figure* F, double r1, double r2 )
+   {
+   // ugly, ugly arrows
+   draw( line, r1, F->c->house(1).def+2.0, r2, F->c->house(1).def );
+   draw( line, r1, F->c->house(1).def-2.0, r2, F->c->house(1).def );
+   draw( line, r1, F->c->house(10).def +2.0, r2, F->c->house(10).def );
+   draw( line, r1, F->c->house(10).def -2.0, r2, F->c->house(10).def );
    }
 
 void tics2( Figure* F, double r1, double r2 )
@@ -553,16 +692,14 @@ void multi_tics( Figure* F, double r1, double r2 )
          case 20:
             draw( spoke, m1, m2, i );
             break;
-         case 14:
+         case 5:
          case 15:
-         case 16:
+         case 26:
             break;
          default:
             draw( spoke, p1, p2, i );
          }
       }
-   ///@todo calculate r1' = 3 deg @ (r1+r2)/2
-   sign_glyphs_turned(F, r1, r2);
    }
 
 void sign_divs( Figure* F, double r1, double r2 )
@@ -599,34 +736,6 @@ void house_divs( Figure* F, double r1, double r2 )
       draw( spoke, r1, r2, each->cusp );
       }
    cairo( stroke );
-   }
-
-void house_slabs( Figure* F, double r1, double r2 )
-   {
-   #define Hlon(n) F->c->house( (n) ).lon
-   double aM;
-   double rM = (r1+r2)/2.0;
-   prep( font, fabs(r1-r2)/2.8 );
-   cairo( new_path );
-   for( int i=1; i<12; i++ )
-      {
-      prep( gray, 0.65 );
-      draw( slab, r1, Hlon(i), r2, Hlon(i+1) );
-      prep( gray, 0.90 );
-      aM = ( Hlon(i)+Hlon(i+1) )/2.0;
-      if ( Hlon(i)>Hlon(i+1) ) aM += 180.0;
-      draw( glyph, rM, aM, F->c->house(i).name );
-      }
-   prep( gray, 0.65 );
-   draw( slab, r1, Hlon(12), r2, Hlon(1) );
-   //
-   prep( gray, 0.90 );
-   aM = ( Hlon(12)+Hlon(1) )/2.0;
-   if ( Hlon(12)>Hlon(1) ) aM += 180.0;
-   draw( glyph, rM, aM, F->c->house(12).name );
-   //
-   cairo( stroke );
-   #undef Hlon
    }
 
 void point_glyphs( Figure* F, double r1, double r2 )
@@ -711,175 +820,77 @@ void point_image( Figure* F, double r1, double r2 )
       }
    }
 
+//---- FANCIER STRIPES -----------------------------------------------//
 
-//-- THE PAINTER LOOP ------------------------------------------------//
-/** paint_stripes() is the main chart-making function.
- * It takes an array @p bs of @ref Stripe structures, each representing
- * a band that runs around the chart, like the zodiac or the planets or
- * midpoints.
- *
- * The Stripe structures are @a Painter function pointers together with
- * information about where this should be placed and how. Usually it
- * would be a name and a width, like:
- @code
-   Stripe* my_stripes =
-      (Stripe)[]
-         {
-            { basic_zodiac, .width=0.2 },
-            { basic_points, .width=0.2 },
-            { basic_houses, .width=0.2 },
-            {}
-         };
-   paint_stripes( c, my_stripes );
- @endcode
- * 
- * @param F Default pointer to Figure structure.
- * @param bs Array of Stripes.
- *
- * @return Nothing.
- */
-void
-paint_stripes( Figure* F, Stripe* bs )
+void zodiac_open( Figure* F, double r1, double r2 )
    {
-   for ( int i = 0; bs[i].func; i++ )
+   prep( code, -1 );
+   prep( line, 0, 1.25 );
+   double m1 = ( r1 + r1 + r1 + r2)/4.0;
+   double m2 = ( r1 + r2 + r2 + r2)/4.0;
+   double p1 = ( m1 + m1 + m2)/3.0;
+   double p2 = ( m1 + m2 + m2)/3.0;
+   for ( int i = 0; i < 360; i += 1 )
       {
-      //first, skip out-of-bounds references
-      if (abs(bs[i].from)>i || abs(bs[i].to)>i || abs(bs[i].as)>i )
-         { continue; }
-      ///@todo double check this logic
-      //set dimensions from other stripes
-      if (bs[i].from != 0)
-         { bs[i].begin += bs[ i+bs[i].from ].begin; }
-      if (bs[i].to != 0)
-         { bs[i].end += bs[ i+bs[i].to ].end; }
-      if (bs[i].as != 0)
+      switch ( i%30 )
          {
-         bs[i].begin += bs[ i+bs[i].as ].begin;
-         bs[i].end += bs[ i+bs[i].as ].end;
+         case 0:
+            draw( spoke, r1, r2, i );
+            break;
+         case 10:
+         case 20:
+            draw( spoke, m1, m2, i );
+            break;
+         case 14:
+         case 15:
+         case 16:
+            break;
+         default:
+            draw( spoke, p1, p2, i );
          }
-      //pack stripes that are not relative
-      if (!(bs[i].end>0.0) )
-         {
-         bs[i].end = i? bs[i-1].begin : 1.0;
-         }
-      if (bs[i].width>0.0)
-         {
-         bs[i].begin = bs[i].end - bs[i].width;
-         }
-      //call the Stripe->Painter function
-      bs[i].func( F, bs[i].begin * F->r, bs[i].end * F->r );
       }
+   ///@todo calculate r1' = 3 deg @ (r1+r2)/2
+   double rM = (r1+r2)/2.0;
+   double gw = l_of_deg_at_r( 2.2, rM );
+   sign_glyphs_turned(F, rM+gw, rM-gw);
    }
 
-//---- TEMPORARY STUFF -----------------------------------------------//
-void noop( Figure* F, double r1, double r2 )
+void house_slabs( Figure* F, double r1, double r2 )
    {
-   static int useless = 0;
-   useless++;
-   //puts("dis func does nada");
-   }
-
-void test_lines( Figure* F, double r1, double r2 )
-   {
-   prep( rgb, .9, .4, .7 );
-   for ( int i=0; i<20; i++)
+   #define Hlon(n) F->c->house( (n) ).lon
+   double aM;
+   double rM = (r1+r2)/2.0;
+   prep( font, fabs(r1-r2)/2.8 );
+   cairo( new_path );
+   for( int i=1; i<12; i++ )
       {
-      prep( line, i, 2.0 );
-      draw( spoke, r1, r2, i*3.0);
+      prep( gray, 0.65 );
+      draw( slab, r1, Hlon(i), r2, Hlon(i+1) );
+      prep( gray, 0.90 );
+      aM = ( Hlon(i)+Hlon(i+1) )/2.0;
+      if ( Hlon(i)>Hlon(i+1) ) aM += 180.0;
+      draw( glyph, rM, aM, F->c->house(i).name );
       }
-   for ( int i=0; i<20; i++)
-      {
-      prep( line, i*10+6, 2.0 );
-      draw( spoke, r1, r2, (i*3.0)+270 );
-      }
-   for ( int i=100; i<400; i+=10)
-      {
-      prep( line, i, 2.0 );
-      draw( line, r1, i*0.65, r2, i*0.65);
-      }
-   prep( gray, 0.0 );
-   }
-
-void paint_stripes_test( Figure* F )
-   {
-   Stripe mys[] =
-      {
-         { test_lines, .begin=0.25, .end=0.65 },
-         { point_image, .begin=0.55, .end=0.89 },
-         { axis,  .begin=0.95, .end=0.99 },
-         { tics2,  .width=0.01 },
-         { tics10, .width=0.02 },
-         { sign_divs, .width=0.04 },
-         { border, .from= -1, .to=-3 },
-         { sign_glyphs, .from=-1, .to=-3 },
-         { house_divs, .width=0.3 },
-         { noop,   .as=-1000 },
-         {}
-      };
-   paint_stripes( F, mys );
-   }
-
-void draw_fleur( Figure* F, double r, double z )
-   {
-   const double ds[][6] =
-      {
-         {   0,   0,   0,   0,  80,   0 },
-         { 110,   0, 110,  20, 110,  30 },
-         { 110,  40, 110,  50, 100,  50 },
-         {  90,  50,  80,  40,  90,  30 },
-         {   0,   0,   0,   0,  90,  30 }, //0
-         {  80,  40,  90,  50, 100,  50 }, //1
-         { 110,  50, 120,  40, 120,  30 }, //2
-         { 120,  10, 110,   0,  80,   0 }, //3
-         {  20,   0,  30,  60,   0,  60 }, //4
-         {  30,  60,  20, 120,  80, 120 }, //5
-         { 110, 120, 120, 110, 120,  90 }, //6
-         { 120,  80, 110,  70, 100,  70 }, //7
-         {  90,  70,  80,  80,  90,  90 }, //8
-         {  80,  80,  90,  70, 100,  70 }, //7'
-         { 110,  70, 110,  80, 110,  90 }, //9
-         { 110, 100, 110, 120,  80, 120 }, //5'
-         {  60, 120,  50, 110,  50,  90 }, //10
-         {  50,  70,  60,  60,  80,  60 }, //11
-         {  60,  60,  50,  50,  50,  30 }, //12
-         {  50,  10,  60,   0,  80,   0 }, //3'
-         {  40,   0,  30,  40,  50,  60 }, //13
-         {  30,  80,  40, 120,  80, 120 }
-      };
-   // housekeeping
-   cairo_matrix_t save;
-   cairo( get_matrix, &save );
-   cairo( translate, F->x, F->y );
-   cairo( rotate, ANG((z+180)) );
-   cairo( translate, F->r * -1, 0 );
-   cairo( scale, 0.5, 0.5 );
+   prep( gray, 0.65 );
+   draw( slab, r1, Hlon(12), r2, Hlon(1) );
    //
-   cairo( move_to, ds[0][4], ds[0][5]-60 );
-   for( int i = 1; i<22; i++ )
-      {
-      cairo( curve_to, ds[i][0], ds[i][1]-60, ds[i][2], ds[i][3]-60, ds[i][4], ds[i][5]-60 );
-      }
+   prep( gray, 0.90 );
+   aM = ( Hlon(12)+Hlon(1) )/2.0;
+   if ( Hlon(12)>Hlon(1) ) aM += 180.0;
+   draw( glyph, rM, aM, F->c->house(12).name );
    //
-   // housekeeping
-   cairo( set_matrix, &save );
    cairo( stroke );
-   };
-
-void fleurons( Figure* F, double r1, double r2 )
-   {
-   prep( gray, 0.0 );
-   draw_fleur( F, r1, F->c->ascendant );
-   draw_fleur( F, r1, F->c->midheaven );
+   #undef Hlon
    }
 
 void dot_dot_points( Figure* F, double r1, double r2 )
    {
    // set places for things
-   double r1A = 0.85 * r1 + 0.15 * r2;
-   double rP =  0.68 * r1 + 0.32 * r2;
-   double rD =  0.40 * r1 + 0.60 * r2;
-   double rS =  0.24 * r1 + 0.76 * r2;
-   double r2A = 0.15 * r1 + 0.85 * r2;
+   double r2A = 0.85 * r2 + 0.15 * r1;
+   double rP =  0.68 * r2 + 0.32 * r1;
+   double rD =  0.40 * r2 + 0.60 * r1;
+   double rS =  0.24 * r2 + 0.76 * r1;
+   double r1A = 0.15 * r2 + 0.85 * r1;
    // ensure we have a distrib
    double psz = fabs(r1-r2)/3;
    double* ds =  make_distrib( F, deg_of_l_at_r(psz,rP) );
@@ -892,7 +903,7 @@ void dot_dot_points( Figure* F, double r1, double r2 )
       // colorify
       prep( code, ps[i].code );
       // dots
-      prep( font, F->sz*0.5 );
+      prep( font, F->sz );
       draw( glyph, r1, ps[i].lon, "\u25CF" );
       draw( glyph, r2, ps[i].lon, "\u25CF" );
       // lines
@@ -942,28 +953,26 @@ void extra_house_sys( Figure* F, double r1, double r2 )
       rB += up;
       rT += up;
       }
-   prep( line, 0, 2 );
    }
-
-intern void
-draw_arc_2pt_r( Figure* F, double r1, double a1, double r2, double a2, double r )
-   {
-   double x1 = r1 * cos( ANG(a1) ) + F->x;
-   double y1 = r1 * sin( ANG(a1) ) + F->y;
-   double x2 = r2 * cos( ANG(a2) ) + F->x;
-   double y2 = r2 * sin( ANG(a2) ) + F->y;
-   double xM = ( x1 + x2 ) / 2.0;
-   double yM = ( y1 + y2 ) / 2.0;
-   double q = sqrt( (x1-x2)*(x1-x2) + (y1-y2)*(y1-y2) );
-   double xC = xM + sqrt(r*r-(q/2.0)*(q/2.0))*(y1-y2)/q;
-   double yC = yM + sqrt(r*r-(q/2.0)*(q/2.0))*(x2-x1)/q;
-   cairo( arc, xC, yC, r, 0, 2*M_PI );
-   cairo( stroke );
-   }
-
 
 void basic_aspects( Figure* F, double r1, double r2 )
    {
+   prep( code, -3 );
+   prep( line, 3, 1.5 );
+   for ( Aspect* each = F->c->aspects;
+      each < (F->c->aspects + F->c->asp_count);
+      each++
+      )
+      {
+      Point* pt1 = &( F->c->points[ each->point1 ] );
+      Point* pt2 = &( F->c->points[ each->point2 ] );
+      draw( line, r1, pt1->lon, r1, pt2->lon );
+      }
+   }
+
+void fancy_aspects( Figure* F, double r1, double r2 )
+   {
+   double conj_r = l_of_deg_at_r(4.0,r1);
    for ( Aspect* each = F->c->aspects;
       each < (F->c->aspects + F->c->asp_count);
       each++
@@ -976,75 +985,224 @@ void basic_aspects( Figure* F, double r1, double r2 )
          default:
          prep( line, 0, 1 );
          cairo( set_source_rgba, 0.0, 0.0, 0.0, (each->score/120.0) );
-         draw( line, r2, pt1->lon, r2, pt2->lon );
+         draw( line, r1, pt1->lon, r1, pt2->lon );
          break;
          case 1: // conjunction
-         prep( line, 0, (each->score/30.0) );
-         cairo( set_source_rgba, 0.8, 0.6, 0.0, (each->score/120.0) );
+         prep( line, 0, (each->score/25.0) );
+         cairo( set_source_rgba, 0.99, 0.6, 0.1, (each->score/120.0) );
          if ( pt1->lon > pt2-> lon )
-         draw( arc_2pt_r, r2, pt1->lon, r2, pt2->lon, l_of_deg_at_r(5.0,r2) );
+         draw( arc_2pt_r, r1, pt1->lon, r1, pt2->lon, conj_r );
          else
-         draw( arc_2pt_r, r2, pt2->lon, r2, pt1->lon, l_of_deg_at_r(5.0,r2) );
+         draw( arc_2pt_r, r1, pt2->lon, r1, pt1->lon, conj_r );
          break;
          case 2: // opposition
-         prep( line, 220, (each->score/30.0) );
-         cairo( set_source_rgba, 0.7, 0.4, 0.0, (each->score/120.0) );
-         draw( line, r2, pt1->lon, r2, pt2->lon );
+         prep( line, 220, (each->score/25.0) );
+         cairo( set_source_rgba, 0.85, 0.25, 0.25, (each->score/120.0) );
+         draw( line, r1, pt1->lon, r1, pt2->lon );
          break;
          case 4: // square
-         prep( line, 320, (each->score/30.0) );
+         prep( line, 320, (each->score/25.0) );
          cairo( set_source_rgba, 0.8, 0.3, 0.0, (each->score/120.0) );
-         draw( line, r2, pt1->lon, r2, pt2->lon );
+         draw( line, r1, pt1->lon, r1, pt2->lon );
          break;
          case 3: // trine
-         prep( line, 120, (each->score/30.0) );
+         prep( line, 110, (each->score/25.0) );
          cairo( set_source_rgba, 0.4, 0.7, 0.0, (each->score/120.0) );
-         draw( line, r2, pt1->lon, r2, pt2->lon );
+         draw( line, r1, pt1->lon, r1, pt2->lon );
          break;
          case 6: // sextile
-         prep( line, 180, (each->score/30.0) );
+         prep( line, 180, (each->score/25.0) );
          cairo( set_source_rgba, 0.2, 0.7, 0.2, (each->score/120.0) );
-         draw( line, r2, pt1->lon, r2, pt2->lon );
+         draw( line, r1, pt1->lon, r1, pt2->lon );
          break;
          case 12: // inconjunct
-         prep( line, 430, (each->score/30.0) );
+         prep( line, 420, (each->score/25.0) );
          cairo( set_source_rgba, 0.8, 0.7, 0.3, (each->score/120.0) );
-         draw( line, r2, pt1->lon, r2, pt2->lon );
+         draw( line, r1, pt1->lon, r1, pt2->lon );
          break;
          case 5: // pentagons
-         prep( line, 4, (each->score/40.0) );
+         prep( line, 4, (each->score/30.0) );
          cairo( set_source_rgba, 0.5, 0.7, 0.9, (each->score/120.0) );
-         draw( line, r2, pt1->lon, r2, pt2->lon );
+         draw( line, r1, pt1->lon, r1, pt2->lon );
          break;
          case 7: // septile
-         prep( line, 7, (each->score/40.0) );
+         prep( line, 7, (each->score/30.0) );
          cairo( set_source_rgba, 0.8, 0.3, 0.9, (each->score/120.0) );
-         draw( line, r2, pt1->lon, r2, pt2->lon );
+         draw( line, r1, pt1->lon, r1, pt2->lon );
          break;
          }
       }
    }
 
+
+
+
+//-- THE PAINTER LOOP ------------------------------------------------//
+/** paint_stripes() is the main chart-making function.
+ * It takes an array @p bs of @ref Stripe structures, each representing
+ * a band that runs around the chart, like the zodiac or the planets or
+ * midpoints.
+ *
+ * The Stripe structures are @a Painter function pointers together with
+ * information about where this should be placed and how. Usually it
+ * would be a name and a width, like:
+ @code
+   Stripe* my_stripes =
+      (Stripe)[]
+         {
+            { basic_zodiac, .width=0.2 },
+            { basic_points, .width=0.2 },
+            { basic_houses, .width=0.2 },
+            {}
+         };
+   paint_stripes( c, my_stripes );
+ @endcode
+ * 
+ * The parameters that can be specified are .begin, .end, .width and
+ * .over.
+ * 
+ * @param F Default pointer to Figure structure.
+ * @param bs Array of Stripes.
+ *
+ * @return Nothing.
+ * 
+ * @todo double check this logic
+ */
+void
+paint_stripes( Figure* F, Stripe* bs )
+   {
+   for ( int i = 0; bs[i].func; i++ )
+      {
+      //first, skip out-of-bounds references
+      if ( abs(bs[i].over)>i )
+         { continue; }
+      //set dimensions from other stripes
+      if ( bs[i].over < 0 )
+         {
+         bs[i].begin += bs[ i+bs[i].over ].begin;
+         bs[i].end += bs[ i+bs[i].over ].end;
+         }
+      if ( bs[i].over > 0 )
+         {
+         bs[i].begin += bs[ bs[i].over-1 ].begin;
+         bs[i].end += bs[ bs[i].over-1 ].end;
+         }
+      //pack stripes that are not relative
+      if ( !(bs[i].begin>0.0) )
+         {
+         if ( bs[i].width && bs[i].end )
+            { bs[i].begin = bs[i].end + bs[i].width; }
+         else
+            { bs[i].begin = i? bs[i-1].end : 1.0; }
+         }
+      //set widths
+      if ( bs[i].width>0.0 )
+         {
+         bs[i].end = bs[i].begin - bs[i].width;
+         }
+      //call the Stripe->Painter function
+      bs[i].func( F, bs[i].begin * F->r, bs[i].end * F->r );
+      }
+   }
+
+//---- TEMPORARY STUFF -----------------------------------------------//
+void noop( Figure* F, double r1, double r2 )
+   {
+   static int useless = 0;
+   useless++;
+   //puts("dis func does nada");
+   }
+
+void test_lines( Figure* F, double r1, double r2 )
+   {
+   prep( rgb, .9, .4, .7 );
+   for ( int i=0; i<20; i++)
+      {
+      prep( line, i, 2.0 );
+      draw( spoke, r1, r2, i*3.0);
+      }
+   for ( int i=0; i<20; i++)
+      {
+      prep( line, i*10+6, 2.0 );
+      draw( spoke, r1, r2, (i*3.0)+270 );
+      }
+   for ( int i=100; i<400; i+=10)
+      {
+      prep( line, i, 2.0 );
+      draw( line, r1, i*0.65, r2, i*0.65);
+      }
+   prep( gray, 0.0 );
+   }
+
+/*//
+void paint_stripes_test( Figure* F )
+   {
+   Stripe mys[] =
+      {
+         { test_lines, .begin=0.25, .end=0.65 },
+         { point_image, .begin=0.55, .end=0.89 },
+         { axis,  .begin=0.95, .end=0.99 },
+         { tics2,  .width=0.01 },
+         { tics10, .width=0.02 },
+         { sign_divs, .width=0.04 },
+         { border, .from= -1, .to=-3 },
+         { sign_glyphs, .from=-1, .to=-3 },
+         { house_divs, .width=0.3 },
+         { noop,   .as=-1000 },
+         {}
+      };
+   paint_stripes( F, mys );
+   }
+//*/
+
+
 //####################################################################//
 //---- TEST ----------------------------------------------------------//
 //####################################################################//
 #ifdef TEST
+#define for_each_stripe for( Stripe* each = ts; each->func; each++ )
 BEGIN_TESTS
-/* --> guess there should be some scaffolding like this:
    Figure fig = {};
    Stripe ts[] =
       {
-         { noop, .width = .1 },
-         { noop, .width = .1 },
-         { noop, .width = .1 },
-         { noop, .width = .1 },
-         { noop, .width = .1 },
-         {}
+      /* 00 */ { noop, .width = .1 },
+      /* 01 */ { noop, .width = .2 },
+      /* 02 */ { noop, .width = .05 },
+      /* 03 */ { noop, .width = .01 },
+      /* 04 */ { noop, .width = .2 },
+      /* 05 */ { noop, .over = 1 },
+      /* 06 */ { noop, .over = -1 },
+      /* 07 */ { noop, .begin = 0.9, .end = 0.8 },
+      /* 08 */ { noop, .begin = 0.9, .width = 0.1 },
+      /* 09 */ { noop, .over = 8, .width = 0.1 },
+      /* 10 */ { noop, .end = 0.8, .width = 0.1 },
+      /* XX */ //{ noop, .over = -1 },
+      /* XX */ {}
       };
-   paint_stripes( fig, ts );
-   //and check wether ts[] is sane
-*/
-   MUST("write some tests", FALSE);
+   paint_stripes( &fig, ts );
+   TRIAL("Stripes dont end up with 0 dimensions",
+      for_each_stripe
+         {
+         ENSURE( each->begin != 0.0 );
+         ENSURE( each->end != 0.0 );
+         }
+      );
+   TRIAL("Stripes with .width get consistent size",
+      for_each_stripe
+         {
+         if( each->width != 0 )
+            { ENSURE( NEAR( each->begin - each->end, each->width ) ); }
+         }
+      ENSURE( ts[8].end == ts[7].end );
+      );
+   MUST("Combine .width with .over", NEAR( ts[9].end , ts[7].end ) );
+   MUST("Combine .width with .end", NEAR( ts[10].begin , 0.9 ) );
+   TRIAL(".over copies dimensions",
+      ENSURE( ts[5].begin == ts[0].begin );
+      ENSURE( ts[5].end == ts[0].end );
+      ENSURE( ts[6].begin == ts[0].begin );
+      ENSURE( ts[6].end == ts[0].end );
+      );
 END_TESTS
 #endif //TEST
 
